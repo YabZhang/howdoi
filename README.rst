@@ -7,13 +7,14 @@ Add some adjustment for my own use:
 
 Add proxy conf to your env:
 
-e.g.
+e.g. ( in my `~/.zshrc` )
 
-``` ~/.zshrc
-export http_proxy=socks5://localhost:1080
-export https_proxy=socks5://localhost:1080
+::
 
-```
+    export http_proxy=socks5://localhost:1080
+    export https_proxy=socks5://localhost:1080
+
+
 -------------------------------------------
 
 
