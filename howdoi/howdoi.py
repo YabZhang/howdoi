@@ -45,10 +45,10 @@ else:
 
 
 if os.getenv('HOWDOI_DISABLE_SSL'):  # Set http instead of https
-    SEARCH_URL = 'http://www.google.com/search?q=site:{0}%20{1}'
+    SEARCH_URL = 'http://www.google.com.hk/search?q=site:{0}%20{1}'
     VERIFY_SSL_CERTIFICATE = False
 else:
-    SEARCH_URL = 'https://www.google.com/search?q=site:{0}%20{1}'
+    SEARCH_URL = 'https://www.google.com.hk/search?q=site:{0}%20{1}'
     VERIFY_SSL_CERTIFICATE = True
 
 URL = os.getenv('HOWDOI_URL') or 'stackoverflow.com'
@@ -75,7 +75,7 @@ def get_proxies():
     filtered_proxies = {}
     for key, value in proxies.items():
         if key.startswith('http'):
-            if not value.startswith('http'):
+            if not value.startswith('http') and not value.startswith('socks5'):
                 filtered_proxies[key] = 'http://%s' % value
             else:
                 filtered_proxies[key] = value
@@ -222,7 +222,7 @@ def howdoi(args):
     args['query'] = ' '.join(args['query']).replace('?', '')
     try:
         return _get_instructions(args) or 'Sorry, couldn\'t find any help with that topic\n'
-    except (ConnectionError, SSLError):
+    except (ConnectionError, SSLError) as e:
         return 'Failed to establish network connection\n'
 
 
