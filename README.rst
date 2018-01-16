@@ -1,3 +1,21 @@
+Fork from [gleitz/howdoi](https://github.com/gleitz/howdoi.git), help yourself to read the code
+
+Add some adjustment for my own use:
+
+1. Change 'www.google.com' to 'www.google.com.hk';
+2. Compatiable with socks5 proxy, add one new dependency `PySocks`;
+
+Add proxy conf to your env:
+
+e.g.
+
+``` ~/.zshrc
+export http_proxy=socks5://localhost:1080
+export https_proxy=socks5://localhost:1080
+
+```
+
+-------------------------------------------
 howdoi
 ====================================================
 
