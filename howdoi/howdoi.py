@@ -45,10 +45,10 @@ else:
 
 
 if os.getenv('HOWDOI_DISABLE_SSL'):  # Set http instead of https
-    SEARCH_URL = 'http://www.google.com.hk/search?q=site:{0}%20{1}'
+    SCHEME = 'http://'
     VERIFY_SSL_CERTIFICATE = False
 else:
-    SEARCH_URL = 'https://www.google.com.hk/search?q=site:{0}%20{1}'
+    SCHEME = 'https://'
     VERIFY_SSL_CERTIFICATE = True
 
 URL = os.getenv('HOWDOI_URL') or 'stackoverflow.com'
@@ -60,6 +60,10 @@ USER_AGENTS = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10.7; rv:11.0) Gecko/2010
                 'Chrome/19.0.1084.46 Safari/536.5'),
                ('Mozilla/5.0 (Windows; Windows NT 6.1) AppleWebKit/536.5 (KHTML, like Gecko) Chrome/19.0.1084.46'
                 'Safari/536.5'), )
+SEARCH_URLS = {
+    'bing': SCHEME + 'www.bing.com/search?q=site:{0}%20{1}',
+    'google': SCHEME + 'www.google.com.hk/search?q=site:{0}%20{1}'
+}
 STAR_HEADER = u('\u2605')
 ANSWER_HEADER = u('{2}  Answer from {0} {2}\n{1}')
 NO_ANSWER_MSG = '< no answer given >'
@@ -68,6 +72,7 @@ XDG_CACHE_DIR = os.environ.get('XDG_CACHE_HOME',
 CACHE_DIR = os.path.join(XDG_CACHE_DIR, 'howdoi')
 CACHE_FILE = os.path.join(CACHE_DIR, 'cache{0}'.format(
     sys.version_info[0] if sys.version_info[0] == 3 else ''))
+howdoi_session = requests.session()
 
 
 def get_proxies():
@@ -84,19 +89,41 @@ def get_proxies():
 
 def _get_result(url):
     try:
-        return requests.get(url, headers={'User-Agent': random.choice(USER_AGENTS)}, proxies=get_proxies(),
-                            verify=VERIFY_SSL_CERTIFICATE).text
+        return howdoi_session.get(url, headers={'User-Agent': random.choice(USER_AGENTS)}, proxies=get_proxies(),
+                                  verify=VERIFY_SSL_CERTIFICATE).text
     except requests.exceptions.SSLError as e:
         print('[ERROR] Encountered an SSL Error. Try using HTTP instead of '
               'HTTPS by setting the environment variable "HOWDOI_DISABLE_SSL".\n')
         raise e
 
 
-def _get_links(query):
-    result = _get_result(SEARCH_URL.format(URL, url_quote(query)))
-    html = pq(result)
+def _extract_links_from_bing(html):
+    html.remove_namespaces()
+    return [a.attrib['href'] for a in html('.b_algo')('h2')('a')]
+
+
+def _extract_links_from_google(html):
     return [a.attrib['href'] for a in html('.l')] or \
         [a.attrib['href'] for a in html('.r')('a')]
+
+
+def _extract_links(html, search_engine):
+    if search_engine == 'bing':
+        return _extract_links_from_bing(html)
+    return _extract_links_from_google(html)
+
+
+def _get_search_url(search_engine):
+    return SEARCH_URLS.get(search_engine, SEARCH_URLS['google'])
+
+
+def _get_links(query):
+    search_engine = os.getenv('HOWDOI_SEARCH_ENGINE', 'google')
+    search_url = _get_search_url(search_engine)
+
+    result = _get_result(search_url.format(URL, url_quote(query)))
+    html = pq(result)
+    return _extract_links(html, search_engine)
 
 
 def get_link_at_pos(links, position):
@@ -179,13 +206,16 @@ def _get_answer(args, links):
 
 def _get_instructions(args):
     links = _get_links(args['query'])
+    if not links:
+        return False
+
     question_links = _get_questions(links)
+    if not question_links:
+        return False
 
     only_hyperlinks = args.get('link')
     star_headers = (args['num_answers'] > 1 or args['all'])
 
-    if not links:
-        return False
     answers = []
     initial_position = args['pos']
     for answer_number in range(args['num_answers']):
@@ -201,11 +231,12 @@ def _get_instructions(args):
         answers.append(answer)
     return '\n'.join(answers)
 
+
 def format_answer(link, answer, star_headers):
     if star_headers:
         return ANSWER_HEADER.format(link, answer, STAR_HEADER)
-    else:
-        return answer
+    return answer
+
 
 def _enable_cache():
     if not os.path.exists(CACHE_DIR):
@@ -214,7 +245,7 @@ def _enable_cache():
 
 
 def _clear_cache():
-    for cache in glob.glob('{0}*'.format(CACHE_FILE)):
+    for cache in glob.iglob('{0}*'.format(CACHE_FILE)):
         os.remove(cache)
 
 
@@ -275,6 +306,8 @@ def command_line_runner():
     else:
         # Write UTF-8 to stdout: https://stackoverflow.com/a/3603160
         sys.stdout.buffer.write(utf8_result)
+    # close the session to release connection
+    howdoi_session.close()
 
 
 if __name__ == '__main__':
